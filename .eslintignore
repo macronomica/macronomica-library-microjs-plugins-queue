@@ -1,0 +1,5 @@
+node_modules
+coverage
+src/**/*.json
+index.js
+gulpfile.js

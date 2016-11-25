@@ -1,59 +1,54 @@
 import middleware from "amqplib";
-import { DRIVER, QUEUE_OPTIONS_HOST } from './constants';
+import isFunction from "lodash.isfunction";
+import connect from "./connect";
+import actions from "./actions";
+import ErrorHandler from "./utils/error-handler";
 
-export default ({ driver:DRIVER, url = QUEUE_OPTIONS_HOST, timeout, ...socketOptions } = {}) => {
+export default (settings = {}) => {
   return (micro, name, pluginId) => {
-    const plugin = { name, id: pluginId };
-    let connectStack = [];
-    let client;
+    const errorHandler = ErrorHandler(micro);
+    const plugin = { name, id: pluginId, middleware, client: null };
+    const __actions = {};
 
     micro
       .queue({
         case: 'wait',
         args: [],
-        done: () => middleware.connect(url, { ...socketOptions })
-          .then(connect => {
-            client = connect
-              .on('error', errorCallback(micro));
-
-            return Promise
-              .all(connectStack.map(([resolve]) => resolve(client)))
-              .then(() => connectStack = [])
-              .then(() => connect);
-          })
-          .catch(error => {
-            errorCallback(micro)(error);
-            return Promise
-              .all(connectStack.map(([,reject]) => reject(error)))
-              .then(() => connectStack = [])
-              .then(() => Promise.reject(error));
-          })
+        done: () => connect(settings)
+          .then(connect => plugin.client = connect.on('error', errorHandler))
+          .then(applyActions(micro, __actions))
+          .catch(errorHandler)
       })
       .queue({
         case: 'close',
         args: [],
-        done: () => client.close().catch(errorCallback(micro))
+        done: () => plugin.client.close().catch(errorHandler)
       });
 
-    return {
-      middleware,
-      client: () => {
-        if (!!client) {
-          return Promise.resolve(client)
+    return new Proxy(plugin, {
+      get(target, property) {
+        if (property in target) {
+          return target[ property ];
         }
 
-        return new Promise((resolve, reject) => connectStack.push([ resolve, reject ]));
+        if (property in __actions) {
+          return __actions[ property ];
+        }
+
+        return plugin.client[ property ];
       }
-    }
+    })
   };
 }
-function errorCallback(micro) {
-  return error => {
-    if (!!error) {
-      micro.logger.error('The server refused the connection', {
-        code   : `error.plugin-cache-redis/${ error.code }`,
-        message: error.message.toString()
-      })
-    }
-  }
+
+function applyActions(micro, __actions) {
+  return client => Object
+    .keys(actions)
+    .forEach(key => {
+      if (isFunction(actions[ key ])) {
+        __actions[ key ] = actions[ key ](micro, client, __actions)
+      } else {
+        __actions[ key ] = actions[ key ];
+      }
+    })
 }

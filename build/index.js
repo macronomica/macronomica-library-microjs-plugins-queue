@@ -1,18 +1,24 @@
-'use strict';
+"use strict";
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
-var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
-
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-var _amqplib = require('amqplib');
+var _amqplib = require("amqplib");
 
 var _amqplib2 = _interopRequireDefault(_amqplib);
 
-var _constants = require('./constants');
+var _lodash = require("lodash.isfunction");
+
+var _lodash2 = _interopRequireDefault(_lodash);
+
+var _errorHandler = require("./utils/error-handler");
+
+var _errorHandler2 = _interopRequireDefault(_errorHandler);
+
+var _constants = require("./constants");
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -20,79 +26,58 @@ function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in ob
 
 exports.default = function () {
   var _ref = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {},
-      DRIVER = _ref.driver,
+      _ref$driver = _ref.driver,
+      driver = _ref$driver === undefined ? _constants.DRIVER : _ref$driver,
       _ref$url = _ref.url,
       url = _ref$url === undefined ? _constants.QUEUE_OPTIONS_HOST : _ref$url,
-      timeout = _ref.timeout,
-      socketOptions = _objectWithoutProperties(_ref, ['driver', 'url', 'timeout']);
+      socketOptions = _objectWithoutProperties(_ref, ["driver", "url"]);
 
   return function (micro, name, pluginId) {
-    var plugin = { name: name, id: pluginId };
-    var connectStack = [];
-    var _client = void 0;
+    var errorHandler = (0, _errorHandler2.default)(micro);
+    var plugin = { name: name, id: pluginId, middleware: _amqplib2.default, client: null };
+    var __actions = {};
 
     micro.queue({
       case: 'wait',
       args: [],
       done: function done() {
         return _amqplib2.default.connect(url, _extends({}, socketOptions)).then(function (connect) {
-          _client = connect.on('error', errorCallback(micro));
-
-          return Promise.all(connectStack.map(function (_ref2) {
-            var _ref3 = _slicedToArray(_ref2, 1),
-                resolve = _ref3[0];
-
-            return resolve(_client);
-          })).then(function () {
-            return connectStack = [];
-          }).then(function () {
-            return connect;
-          });
-        }).catch(function (error) {
-          errorCallback(micro)(error);
-          return Promise.all(connectStack.map(function (_ref4) {
-            var _ref5 = _slicedToArray(_ref4, 2),
-                reject = _ref5[1];
-
-            return reject(error);
-          })).then(function () {
-            return connectStack = [];
-          }).then(function () {
-            return Promise.reject(error);
-          });
-        });
+          return plugin.client = connect.on('error', errorHandler);
+        }).then(applyActions(micro, __actions)).catch(errorHandler);
       }
     }).queue({
       case: 'close',
       args: [],
       done: function done() {
-        return _client.close().catch(errorCallback(micro));
+        return plugin.client.close().catch(errorHandler);
       }
     });
 
-    return {
-      middleware: _amqplib2.default,
-      client: function client() {
-        if (!!_client) {
-          return Promise.resolve(_client);
+    return new Proxy(plugin, {
+      get: function get(target, property) {
+        if (property in target) {
+          return target[property];
         }
 
-        return new Promise(function (resolve, reject) {
-          return connectStack.push([resolve, reject]);
-        });
+        if (property in __actions) {
+          return __actions[property];
+        }
+
+        return plugin.client[property];
       }
-    };
+    });
   };
 };
 
-function errorCallback(micro) {
-  return function (error) {
-    if (!!error) {
-      micro.logger.error('The server refused the connection', {
-        code: 'error.plugin-cache-redis/' + error.code,
-        message: error.message.toString()
-      });
-    }
+function applyActions(micro, __actions) {
+  return function (client) {
+    return Object.keys(actions).forEach(function (key) {
+      if ((0, _lodash2.default)(actions[key])) {
+        __actions[key] = actions[key](micro, client, __actions);
+      } else {
+        __actions[key] = actions[key];
+      }
+    });
   };
 }
 //# sourceMappingURL=index.js.map

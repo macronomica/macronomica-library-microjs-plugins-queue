@@ -25,7 +25,11 @@
     "url": "https://github.com/macronomica/macronomica-library-microjs-plugins-queue.git"
   },
   "dependencies": {
-    "amqplib": "^0.5.1"
+    "amqplib": "^0.5.1",
+    "config": "^1.24.0",
+    "lodash.isfunction": "^3.0.8",
+    "lodash.isplainobject": "^4.0.6",
+    "lodash.isstring": "^4.0.1"
   },
   "peerDependencies": {
     "microjs": "git+ssh://git@github.com:macronomica/macronomica-library-microjs.git"

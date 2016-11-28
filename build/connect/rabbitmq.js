@@ -43,7 +43,7 @@ exports.default = function () {
 
   var _ref2 = (0, _lodash4.default)(queue) ? queue : _config2.default.has(queue) ? _config2.default.get(queue) : {},
       _ref2$url = _ref2.url,
-      url = _ref2$url === undefined ? _constants.QUEUE_OPTIONS_HOST : _ref2$url,
+      url = _ref2$url === undefined ? _constants.QUEUE_OPTIONS_URL : _ref2$url,
       other = _objectWithoutProperties(_ref2, ['url']);
 
   return _amqplib2.default.connect(url, _extends({}, other));

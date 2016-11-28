@@ -4,8 +4,6 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
 var _amqplib = require("amqplib");
 
 var _amqplib2 = _interopRequireDefault(_amqplib);
@@ -14,23 +12,22 @@ var _lodash = require("lodash.isfunction");
 
 var _lodash2 = _interopRequireDefault(_lodash);
 
+var _connect = require("./connect");
+
+var _connect2 = _interopRequireDefault(_connect);
+
+var _actions = require("./actions");
+
+var _actions2 = _interopRequireDefault(_actions);
+
 var _errorHandler = require("./utils/error-handler");
 
 var _errorHandler2 = _interopRequireDefault(_errorHandler);
 
-var _constants = require("./constants");
-
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
-
 exports.default = function () {
-  var _ref = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {},
-      _ref$driver = _ref.driver,
-      driver = _ref$driver === undefined ? _constants.DRIVER : _ref$driver,
-      _ref$url = _ref.url,
-      url = _ref$url === undefined ? _constants.QUEUE_OPTIONS_HOST : _ref$url,
-      socketOptions = _objectWithoutProperties(_ref, ["driver", "url"]);
+  var settings = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
 
   return function (micro, name, pluginId) {
     var errorHandler = (0, _errorHandler2.default)(micro);
@@ -41,7 +38,7 @@ exports.default = function () {
       case: 'wait',
       args: [],
       done: function done() {
-        return _amqplib2.default.connect(url, _extends({}, socketOptions)).then(function (connect) {
+        return (0, _connect2.default)(settings).then(function (connect) {
           return plugin.client = connect.on('error', errorHandler);
         }).then(applyActions(micro, __actions)).catch(errorHandler);
       }
@@ -71,11 +68,11 @@ exports.default = function () {
 
 function applyActions(micro, __actions) {
   return function (client) {
-    return Object.keys(actions).forEach(function (key) {
-      if ((0, _lodash2.default)(actions[key])) {
-        __actions[key] = actions[key](micro, client, __actions);
+    return Object.keys(_actions2.default).forEach(function (key) {
+      if ((0, _lodash2.default)(_actions2.default[key])) {
+        __actions[key] = _actions2.default[key](micro, client, __actions);
       } else {
-        __actions[key] = actions[key];
+        __actions[key] = _actions2.default[key];
       }
     });
   };
